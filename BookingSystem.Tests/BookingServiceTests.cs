@@ -1,4 +1,5 @@
-﻿using BookingSystem.Core.Models;
+﻿using BookingSystem.Core.Constants;
+using BookingSystem.Core.Models;
 using BookingSystem.Core.Services;
 using BookingSystem.Infrastructure.Data;
 using BookingSystem.Infrastructure.Repositories;
@@ -66,25 +67,60 @@ namespace BookingSystem.Tests
         public async Task Booking_AddBooking_Success()
         {
             //Arrange
-            Booking booking = new Booking(DateTime.Now, DateTime.Now.AddHours(2), new Room(), new User());
+           
+            var room = new Room();
+            var user = new User();
+            _context.Add(room);
+            _context.Add(user);
+            _context.SaveChanges();
+
+            var booking = new CreateBookingDto
+            { 
+            RoomId = room.Id,
+            UserId = user.Id,
+            StartTime = DateTime.Now,
+            EndTime = DateTime.Now.AddHours(2)
+
+            };
+
             //Act 
-            await _bookingService.AddBookingAsync(booking);
+           var createdBooking = await _bookingService.AddBookingAsync(booking);
             //Assert
             var allBookings = await _context.Bookings.ToListAsync();
-            Assert.Contains(booking, allBookings);
-            Assert.NotEqual(0, booking.Id);
+            Assert.Contains(createdBooking, allBookings);
+            Assert.NotEqual(0, createdBooking.Id);
         }
 
         [Fact]
         public async Task AddBooking_OverlappingBooking_ThrowException()
         {
             //arrange
-            Booking existingBooking = new Booking(DateTime.Now, DateTime.Now.AddHours(2), new Room(), new User());
-            await _bookingService.AddBookingAsync(existingBooking);
             
-            //Act + Assert
-            Booking newBooking = new Booking(DateTime.Now.AddHours(1), DateTime.Now.AddHours(3), existingBooking.Room, new User());
-            await Assert.ThrowsAsync<InvalidOperationException>(() => _bookingService.AddBookingAsync(newBooking));
+            var room = new Room();
+            var user = new User();
+            _context.Add(room);
+            _context.Add(user);
+            _context.SaveChanges();
+
+            var booking = new CreateBookingDto
+            {
+                RoomId = room.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now.AddHours(2)
+
+            };
+
+            //Act ++ Assrrty
+            var oldBooking = await _bookingService.AddBookingAsync(booking);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _bookingService.AddBookingAsync(new CreateBookingDto
+            {
+                RoomId = room.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now.AddHours(1),
+                EndTime = DateTime.Now.AddHours(3)
+            }));
+
 
         }
 
@@ -92,11 +128,25 @@ namespace BookingSystem.Tests
         public async Task IsRoomAvailable_RoomIsBooked_ReturnFalse()
         {
             //Arrange
-            Booking existingBooking = new Booking(DateTime.Now, DateTime.Now.AddHours(2), new Room(), new User());
-            await _bookingService.AddBookingAsync(existingBooking);
+            var room = new Room();
+            var user = new User();
+            _context.Add(room);
+            _context.Add(user);
+            _context.SaveChanges();
+
+            var booking = new CreateBookingDto
+            {
+                RoomId = room.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now.AddHours(2)
+
+            };
+
+            var createdBooking = await _bookingService.AddBookingAsync(booking);
             
             //Act
-            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(existingBooking.RoomId, DateTime.Now.AddMinutes(30), DateTime.Now.AddHours(1));
+            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(createdBooking.RoomId, DateTime.Now.AddMinutes(30), DateTime.Now.AddHours(1));
 
             // Assert
             Assert.False(RoomIsAvailable);
@@ -106,10 +156,25 @@ namespace BookingSystem.Tests
         public async Task IsRoomAvailable_RoomIsNotBooked_ReturnTrue()
         {
             //Arrange 
-            Booking existingBooking = new Booking(DateTime.Now, DateTime.Now.AddHours(2), new Room(), new User());
-            await _bookingService.AddBookingAsync(existingBooking);
+            var room = new Room();
+            var user = new User();
+            _context.Add(room);
+            _context.Add(user);
+            _context.SaveChanges();
+
+            var booking = new CreateBookingDto
+            {
+                RoomId = room.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now.AddHours(2)
+
+            };
+
+            var createdBooking = await _bookingService.AddBookingAsync(booking);
+
             //Act
-            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(existingBooking.RoomId, DateTime.Now.AddHours(3), DateTime.Now.AddHours(4));
+            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(createdBooking.RoomId, DateTime.Now.AddHours(3), DateTime.Now.AddHours(4));
 
             //Assert    
             Assert.True(RoomIsAvailable);
@@ -139,11 +204,44 @@ namespace BookingSystem.Tests
         {
             //Arrange
             
-            Room roomA = new Room();
-            Room roomB = new Room();
-            Booking booking1 = new Booking(DateTime.Now, DateTime.Now.AddHours(2), roomA, new User());
-            Booking booking2 = new Booking(DateTime.Now.AddHours(3), DateTime.Now.AddHours(5), roomA, new User());
-            Booking booking3 = new Booking(DateTime.Now.AddHours(6), DateTime.Now.AddHours(8), roomB, new User());
+            var roomA = new Room();
+            var roomB = new Room();
+            var user = new User();
+            _context.Add(roomA);
+            _context.Add(roomB);
+            _context.Add(user);
+            _context.SaveChanges();
+
+
+            var booking1 = new CreateBookingDto
+            {
+                RoomId = roomA.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now.AddHours(2)
+
+            };
+
+            var booking2 = new CreateBookingDto
+            {
+                RoomId = roomA.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now.AddHours(3),
+                EndTime = DateTime.Now.AddHours(5)
+
+            };
+            var booking3 = new CreateBookingDto
+            {
+                RoomId = roomB.Id,
+                UserId = user.Id,
+                StartTime = DateTime.Now.AddHours(6),
+                EndTime = DateTime.Now.AddHours(8)
+
+            };
+
+            //var booking1 = new CreateBookingDto(DateTime.Now, DateTime.Now.AddHours(2), roomA, user);
+            //Booking booking2 = new Booking(DateTime.Now.AddHours(3), DateTime.Now.AddHours(5), roomA, user);
+            //Booking booking3 = new Booking(DateTime.Now.AddHours(6), DateTime.Now.AddHours(8), roomB, user);
             await _bookingService.AddBookingAsync(booking1);
             await _bookingService.AddBookingAsync(booking2);
             await _bookingService.AddBookingAsync(booking3);
