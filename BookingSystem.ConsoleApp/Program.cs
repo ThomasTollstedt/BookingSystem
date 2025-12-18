@@ -74,16 +74,16 @@ namespace BookingSystem.ConsoleApp
                 bool isAvailable = await response.Content.ReadFromJsonAsync<bool>();
                 if (isAvailable)
                 {
-                    Console.WriteLine("✅ Rummet är ledigt!");
+                    Console.WriteLine(" Rummet är ledigt!");
                 }
                 else
                 {
-                    Console.WriteLine("⛔ Rummet är upptaget.");
+                    Console.WriteLine("Rummet är upptaget.");
                 }
             }
             else
             {
-                Console.WriteLine($"❌ Fel vid kontroll: {response.ReasonPhrase}");
+                Console.WriteLine($" Fel vid kontroll: {response.ReasonPhrase}");
 
             }
         }
@@ -101,7 +101,7 @@ namespace BookingSystem.ConsoleApp
 
                 if (bookings != null && bookings.Any())
                 {
-                    Console.WriteLine($"Hittade {bookings.Count} bokningar:");
+                    Console.WriteLine($"Hittade {bookings.Count} st bokningar:");
                     foreach (var b in bookings)
                     {
                         Console.WriteLine($"- ID: {b.Id} | {b.StartTime} -> {b.EndTime} (User: {b.UserId})");
@@ -114,7 +114,7 @@ namespace BookingSystem.ConsoleApp
             }
             else
             {
-                Console.WriteLine($"❌ Kunde inte hämta bokningar: {response.ReasonPhrase}");
+                Console.WriteLine($"Kunde inte hämta bokningar: {response.ReasonPhrase}");
             }
         }
 
