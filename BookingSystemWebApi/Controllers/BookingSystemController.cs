@@ -46,8 +46,27 @@ namespace BookingSystemWebApi.Controllers
                 return BadRequest($"Det gick inte att lägga till bokningen. {ex.Message}");
             }
 
-
-
         }
-}
+        // GET /api/bookings/availability
+        [HttpGet("availability")]
+        public async Task<IActionResult> CheckAvailability(int roomId, DateTime startTime, DateTime endTime)
+        {
+
+            try
+            {
+                bool isAvailable = await _bookingService.IsRoomAvailableAsync(roomId, startTime, endTime);
+                return Ok(isAvailable);
+            }
+            catch (Exception ex)
+            {
+
+                return BadRequest($"Det gick inte att kontrollera tillgängligheten. {ex.Message}");
+            }
+        
+        
+        }
+
+
+
+    }
 }
