@@ -9,17 +9,17 @@ namespace BookingSystem.Core.Models
     public class Booking
     {
         public int Id { get; set; }
-        public DateTime StartTime { get; private set; }
-        public DateTime EndTime { get; private set; }
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
 
         public int RoomId { get; set; }
-        public Room Room { get; private set; }
+        public Room Room { get;  set; }
 
         public int UserId { get; set; }
-        public User User { get; private set; }
+        public User User { get;  set; }
 
 
-        private Booking() { }
+        public Booking() { }
         
 
         public Booking(DateTime startTime, DateTime endTime, Room room, User user)

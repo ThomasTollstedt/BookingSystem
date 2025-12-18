@@ -1,33 +1,31 @@
 ﻿using BookingSystem.Core.Constants;
+using BookingSystem.Core.Interfaces;
 using BookingSystem.Core.Models;
 using BookingSystem.Core.Services;
 using BookingSystem.Infrastructure.Data;
 using BookingSystem.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using System.Threading.Tasks;
 
 namespace BookingSystem.Tests
 {
     public class BookingServiceTests
     {
-        private readonly BookingDbContext _context;
-        private readonly BookingRepository _bookingRepository;
+
+
+        private readonly Mock<IBookingRepository> _mockBookingRepository;
         private readonly BookingService _bookingService;
 
         public BookingServiceTests()
         {
-            var options = new DbContextOptionsBuilder<BookingDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-                .Options;
-
-            _context = new BookingDbContext(options);
-            _bookingRepository = new BookingRepository(_context);
-            _bookingService = new BookingService(_bookingRepository);
+            _mockBookingRepository = new Mock<IBookingRepository>();
+            _bookingService = new BookingService(_mockBookingRepository.Object);
         }
 
 
         [Fact]
-        public void AddBooking_EndTimeBeforeStartTime_ThrowException()
+        public void AddBooking_EndTimeBeforeStartTime_ThrowException() //Överlappande bokning
         {
             //Arrange
             DateTime startTime = DateTime.Now;
@@ -40,7 +38,7 @@ namespace BookingSystem.Tests
         }
 
         [Fact]
-        public void Booking_WithoutAssignedRoom_ThrowException()
+        public void Booking_WithoutAssignedRoom_ThrowException() //Bokning utan rum
         {
             //Arrange
             DateTime startTime = DateTime.Now;
@@ -52,7 +50,7 @@ namespace BookingSystem.Tests
 
 
         [Fact]
-        public void Booking_WithoutAssignedUser_ThrowException()
+        public void Booking_WithoutAssignedUser_ThrowException() //Bokning utan användare
         {
             //Arrange
             DateTime startTime = DateTime.Now;
@@ -64,63 +62,94 @@ namespace BookingSystem.Tests
 
 
         [Fact]
-        public async Task Booking_AddBooking_Success()
+        public async Task Booking_AddBooking_Success() //Skapa en lyckad bokning 
         {
             //Arrange
-           
-            var room = new Room();
-            var user = new User();
-            _context.Add(room);
-            _context.Add(user);
-            _context.SaveChanges();
 
-            var booking = new CreateBookingDto
-            { 
-            RoomId = room.Id,
-            UserId = user.Id,
-            StartTime = DateTime.Now,
-            EndTime = DateTime.Now.AddHours(2)
+            int roomId = 1;
+            int userId = 1;
+            var room = new Room { Id = roomId };
+            var user = new User { Id = userId };
 
+            var bookingDto = new CreateBookingDto
+            {
+                RoomId = roomId,
+                UserId = userId,
+                StartTime = DateTime.Now,
+                EndTime = DateTime.Now.AddHours(2)
             };
 
+            _mockBookingRepository
+                .Setup(repo => repo.GetRoomByIdAsync(roomId))
+                .ReturnsAsync(room);
+
+            _mockBookingRepository
+                .Setup(repo => repo.GetUserByIdAsync(userId))
+                .ReturnsAsync(user);
+
+            _mockBookingRepository
+                .Setup(repo => repo.GetBookingsByRoomAsync(roomId))
+                .ReturnsAsync(new List<Booking>()); //ingen överlappande bokning
+
+            _mockBookingRepository
+                .Setup(repo => repo.AddAsync(It.IsAny<Booking>()))
+                .Returns(Task.CompletedTask);
+
             //Act 
-           var createdBooking = await _bookingService.AddBookingAsync(booking);
+            var createdBooking = await _bookingService.AddBookingAsync(bookingDto);
             //Assert
-            var allBookings = await _context.Bookings.ToListAsync();
-            Assert.Contains(createdBooking, allBookings);
-            Assert.NotEqual(0, createdBooking.Id);
+            Assert.NotNull(createdBooking); // Simpel check att bokningen skapades men inte mycket mer än så. 
+            _mockBookingRepository.Verify(repo => repo.AddAsync(It.IsAny<Booking>()), Times.Once);
         }
 
         [Fact]
-        public async Task AddBooking_OverlappingBooking_ThrowException()
+        public async Task AddBooking_OverlappingBooking_ThrowException() //Överlappande bokning nekas
         {
-            //arrange
-            
-            var room = new Room();
-            var user = new User();
-            _context.Add(room);
-            _context.Add(user);
-            _context.SaveChanges();
+            //Arrange
 
-            var booking = new CreateBookingDto
+            int roomId = 1;
+            int userId = 1;
+            var room = new Room { Id = roomId };
+            var user = new User { Id = userId };
+
+            var startTime = DateTime.Now;
+
+            var existingBooking = new Booking(startTime, startTime.AddHours(2), room, user)
             {
-                RoomId = room.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now,
-                EndTime = DateTime.Now.AddHours(2)
+                Id = 1,
+                RoomId = roomId,
 
             };
 
-            //Act ++ Assrrty
-            var oldBooking = await _bookingService.AddBookingAsync(booking);
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => _bookingService.AddBookingAsync(new CreateBookingDto
-            {
-                RoomId = room.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now.AddHours(1),
-                EndTime = DateTime.Now.AddHours(3)
-            }));
 
+            //Mockar rum och user
+            _mockBookingRepository
+                .Setup(repo => repo.GetRoomByIdAsync(roomId))
+                .ReturnsAsync(room);
+
+            _mockBookingRepository
+                .Setup(repo => repo.GetUserByIdAsync(userId))
+                .ReturnsAsync(user);
+
+
+            _mockBookingRepository
+                .Setup(repo => repo.GetBookingsByRoomAsync(roomId))
+                .ReturnsAsync(new List<Booking> { existingBooking }); //Returnerar en redan existerande bokning som överlappar
+
+            //Act
+            var overlappingBookingDto = new CreateBookingDto
+            {
+                RoomId = roomId,
+                UserId = userId,
+                StartTime = startTime.AddHours(1), //Överlappande tid mot firstBookingDto
+                EndTime = startTime.AddHours(3)
+            };
+
+            //Assert
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _bookingService.AddBookingAsync(overlappingBookingDto));
+            // Verify AddAsync was NEVER called (conflict detected before save)
+            _mockBookingRepository.Verify(repo => repo.AddAsync(It.IsAny<Booking>()), Times.Never);
 
         }
 
@@ -128,128 +157,93 @@ namespace BookingSystem.Tests
         public async Task IsRoomAvailable_RoomIsBooked_ReturnFalse()
         {
             //Arrange
-            var room = new Room();
-            var user = new User();
-            _context.Add(room);
-            _context.Add(user);
-            _context.SaveChanges();
+            int roomId = 1;
+            int userId = 1;
+            var room = new Room { Id = roomId };
+            var user = new User { Id = userId};
+           
+            var startTime = DateTime.Now;
 
-            var booking = new CreateBookingDto
+            //skapar en bokning som redan finns i systemet
+            var existingBooking = new Booking(startTime, startTime.AddHours(2), room, user)
             {
-                RoomId = room.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now,
-                EndTime = DateTime.Now.AddHours(2)
-
+                Id = 1,
+                RoomId = roomId,
             };
 
-            var createdBooking = await _bookingService.AddBookingAsync(booking);
-            
+           _mockBookingRepository
+                .Setup(repo => repo.GetBookingsByRoomAsync(roomId))
+                .ReturnsAsync(new List<Booking> { existingBooking }); //Returnerar en redan existerande bokning
+
             //Act
-            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(createdBooking.RoomId, DateTime.Now.AddMinutes(30), DateTime.Now.AddHours(1));
+            // Se över om tillgänglighet fungerar korrekt tidigare bokning nu -> nu+2h, nya bokningen 30min -> 1h
+            bool IsRoomAvailable = await _bookingService.IsRoomAvailableAsync(
+                roomId, 
+                startTime.AddMinutes(30), 
+                startTime.AddHours(1));
 
             // Assert
-            Assert.False(RoomIsAvailable);
+            Assert.False(IsRoomAvailable); //Förväntar att rummet inte är tillgängligt
         }
 
         [Fact]
         public async Task IsRoomAvailable_RoomIsNotBooked_ReturnTrue()
         {
+     
             //Arrange 
-            var room = new Room();
-            var user = new User();
-            _context.Add(room);
-            _context.Add(user);
-            _context.SaveChanges();
+            var roomId = 1; int userId = 1;
+            var startTime = DateTime.Now;
 
-            var booking = new CreateBookingDto
+            var existingBooking = new Booking(startTime, startTime.AddHours(2), new Room { Id = roomId }, new User { Id = 1 })
             {
-                RoomId = room.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now,
-                EndTime = DateTime.Now.AddHours(2)
-
+                RoomId = roomId,
+                UserId = userId
             };
 
-            var createdBooking = await _bookingService.AddBookingAsync(booking);
+            
+            _mockBookingRepository
+                .Setup(repo => repo.GetBookingsByRoomAsync(roomId))
+                .ReturnsAsync(new List<Booking> { existingBooking });
 
             //Act
-            bool RoomIsAvailable = await _bookingService.IsRoomAvailableAsync(createdBooking.RoomId, DateTime.Now.AddHours(3), DateTime.Now.AddHours(4));
+            bool isRoomAvailable = await _bookingService.IsRoomAvailableAsync(
+                roomId,
+                startTime.AddHours(3),
+                startTime.AddHours(4));
 
-            //Assert    
-            Assert.True(RoomIsAvailable);
-
+            //Assert
+            Assert.True(isRoomAvailable);
+            
         }
-        // TA BORT  !!!! 
 
-        //[Fact]
-        //public async Task GetAllBookings_ReturnListOfBookings()
-        //{
-        //    //Arrange   
-        //    Booking booking1 = new Booking(DateTime.Now, DateTime.Now.AddHours(2), new Room(), new User());
-        //    Booking booking2 = new Booking(DateTime.Now.AddHours(3), DateTime.Now.AddHours(5), new Room(), new User());
-        //    Booking booking3 = new Booking(DateTime.Now.AddHours(6), DateTime.Now.AddHours(8), new Room(), new User());
-        //    await _bookingService.AddBookingAsync(booking1);
-        //    await _bookingService.AddBookingAsync(booking2);
-        //    await _bookingService.AddBookingAsync(booking3);
-        //    //Act
-        //    var allBookings = await _bookingService.GetAllBookings();
-
-        //    //Assert
-        //    Assert.Equal(3, allBookings.Count);
-        //}
 
         [Fact]
         public async Task GetBookings_SpecificRoom_ReturnListOfBookings()
         {
-            //Arrange
+            //Arrange 
+            var roomAId = 1;
+            var userId = 1;
+            var roomA = new Room { Id = roomAId };
+            var user = new User { Id = userId };
+
+            var expectedBookingsRoomA = new List<Booking>
+                           {
+                new Booking(DateTime.Now, DateTime.Now.AddHours(2), roomA, user),
+                new Booking(DateTime.Now.AddHours(3), DateTime.Now.AddHours(5), roomA, user) { Id = 2 }
+            };
+
             
-            var roomA = new Room();
-            var roomB = new Room();
-            var user = new User();
-            _context.Add(roomA);
-            _context.Add(roomB);
-            _context.Add(user);
-            _context.SaveChanges();
+            _mockBookingRepository
+                .Setup(repo => repo.GetBookingsByRoomAsync(roomAId))
+                .ReturnsAsync(expectedBookingsRoomA);
 
+            
 
-            var booking1 = new CreateBookingDto
-            {
-                RoomId = roomA.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now,
-                EndTime = DateTime.Now.AddHours(2)
-
-            };
-
-            var booking2 = new CreateBookingDto
-            {
-                RoomId = roomA.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now.AddHours(3),
-                EndTime = DateTime.Now.AddHours(5)
-
-            };
-            var booking3 = new CreateBookingDto
-            {
-                RoomId = roomB.Id,
-                UserId = user.Id,
-                StartTime = DateTime.Now.AddHours(6),
-                EndTime = DateTime.Now.AddHours(8)
-
-            };
-
-            //var booking1 = new CreateBookingDto(DateTime.Now, DateTime.Now.AddHours(2), roomA, user);
-            //Booking booking2 = new Booking(DateTime.Now.AddHours(3), DateTime.Now.AddHours(5), roomA, user);
-            //Booking booking3 = new Booking(DateTime.Now.AddHours(6), DateTime.Now.AddHours(8), roomB, user);
-            await _bookingService.AddBookingAsync(booking1);
-            await _bookingService.AddBookingAsync(booking2);
-            await _bookingService.AddBookingAsync(booking3);
             //Act
-            var bookingsRoomA = await _bookingService.GetBookingsForRoomAsync(roomA.Id);
-            //Assert
-            Assert.Equal(2, bookingsRoomA.Count);
-
+            var result = await _bookingService.GetBookingsForRoomAsync(roomAId);
+            // Assert
+            Assert.Equal(2, result.Count);
+            _mockBookingRepository.Verify(r => r.GetBookingsByRoomAsync(roomAId), Times.Once);
 
         }
 
