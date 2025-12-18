@@ -27,5 +27,16 @@ namespace BookingSystem.Infrastructure.Repositories
 
             return booking;
         }
+        public async Task<Room?> GetRoomByIdAsync(int roomId)
+        {
+            return await _context.Rooms.FindAsync(roomId);
+        }
+
+        public async Task<User?> GetUserByIdAsync(int id)
+        { 
+        
+            return await _context.Users.FindAsync(id);
+        }
+
     }
-}
+}      

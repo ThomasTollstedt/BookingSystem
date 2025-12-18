@@ -2,5 +2,7 @@
   <Project Path="BookingSystem.ConsoleApp/BookingSystem.ConsoleApp.csproj" />
   <Project Path="BookingSystem.Core/BookingSystem.Core.csproj" />
   <Project Path="BookingSystem.Infrastructure/BookingSystem.Infrastructure.csproj" Id="bb6635ba-7ed3-4256-8744-cba61fd7c915" />
+  <Project Path="BookingSystem.IntegrationTests/BookingSystem.IntegrationTests.csproj" Id="3bc8825f-9bae-4c44-91af-8f22bf215383" />
   <Project Path="BookingSystem.Tests/BookingSystem.Tests.csproj" />
+  <Project Path="BookingSystemWebApi/BookingSystemWebApi.csproj" Id="43ab8c42-cfda-475c-bc9c-723eedb5caca" />
 </Solution>

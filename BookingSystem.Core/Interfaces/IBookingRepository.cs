@@ -9,9 +9,11 @@ namespace BookingSystem.Core.Interfaces
 {
     public interface IBookingRepository
     {
-        public Task AddAsync(Booking booking);
+        Task AddAsync(Booking booking);
 
         Task<List<Booking>> GetBookingsByRoomAsync(int roomId);
 
+        Task<Room?> GetRoomByIdAsync(int roomId);
+        Task<User?> GetUserByIdAsync(int userId);
     }
 }

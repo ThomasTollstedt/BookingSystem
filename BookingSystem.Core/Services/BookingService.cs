@@ -1,4 +1,5 @@
-﻿using BookingSystem.Core.Interfaces;
+﻿using BookingSystem.Core.Constants;
+using BookingSystem.Core.Interfaces;
 using BookingSystem.Core.Models;
 using System;
 using System.Collections.Generic;
@@ -8,24 +9,39 @@ using System.Threading.Tasks;
 
 namespace BookingSystem.Core.Services
 {
-    public class BookingService
+    public class BookingService : IBookingService
     {
         private readonly IBookingRepository _bookingRepo;
         public BookingService(IBookingRepository bookingRepo) => _bookingRepo = bookingRepo;
 
 
-        public async Task AddBookingAsync(Booking booking)
+        public async Task<Booking> AddBookingAsync(CreateBookingDto dto)
         {
-            bool IsRoomAvailable = await IsRoomAvailableAsync(booking.RoomId, booking.StartTime, booking.EndTime);
+            var room = await _bookingRepo.GetRoomByIdAsync(dto.RoomId);
+            var user = await _bookingRepo.GetUserByIdAsync(dto.UserId);
+
+            if (room == null)
+            {
+                throw new KeyNotFoundException($"Room with ID {dto.RoomId} not found.");
+            }
+            if (user == null)
+            {
+                throw new KeyNotFoundException($"User with ID {dto.UserId} not found.");
+            }
+
+
+            bool IsRoomAvailable = await IsRoomAvailableAsync(dto.RoomId, dto.StartTime, dto.EndTime);
 
             if (!IsRoomAvailable)
             {
                 throw new InvalidOperationException("The room is already booked for the selected time range.");
             }
 
-  
+            var booking = new Booking(dto.StartTime, dto.EndTime, room, user);
 
             await _bookingRepo.AddAsync(booking);
+                
+            return booking;
         }
 
         public async Task<bool> IsRoomAvailableAsync(int roomId, DateTime startTime, DateTime endTime)
@@ -43,10 +59,6 @@ namespace BookingSystem.Core.Services
 
         }
 
-        //public async Task<List<Booking>> GetAllBookingsAsync()
-        //{
-        //    var allBookings = await _bookingRepo.();
-        //}
 
         public async Task<List<Booking>> GetBookingsForRoomAsync(int roomId)
         {
